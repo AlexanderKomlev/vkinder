@@ -1,3 +1,4 @@
+
 from vk_api.longpoll import VkLongPoll, VkEventType
 from config import main_token, user_token, user_vk_id
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
@@ -53,7 +54,27 @@ class VKinderBot:
                                                  'random_id': 0,
                                                  'keyboard': keyboard})
 
-    # поиск по параметрам: город, возраст, пол
+    def run_bot(self, session):
+
+        for event in self.longpoll.listen():
+            if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
+                if event.text.lower() == 'start':
+                    keyboard = VkKeyboard(inline=True)
+                    keyboard.add_button('В черный список', color=VkKeyboardColor.NEGATIVE)
+                    keyboard.add_button('В избранное', color=VkKeyboardColor.POSITIVE)
+                    keyboard.add_line()
+                    keyboard.add_button('Назад', color=VkKeyboardColor.SECONDARY)
+                    keyboard.add_button('Пропустить', color=VkKeyboardColor.PRIMARY)
+                    keyboard.add_line()
+                    keyboard.add_button('Показать избранное', color=VkKeyboardColor.POSITIVE)
+
+                    self._send_message(event.chat_id, 'Выберите действие:', keyboard.get_keyboard())
+                id = event.user_id
+                # if event.text == '[club223509501|@club223509501] 1' and event.user_id == id:
+                #     print(id)
+
+
+
     def _search(self, offset=0) -> list:
         method = "users.search"
         params = {
@@ -66,11 +87,11 @@ class VKinderBot:
         response = self.session.method(method, values=params)
         return list(filter(lambda x: x.get("is_closed", "") == False, response.get("items", "")))
 
-    # возвращает количество найденных людей
+
     def find_count(self) -> int:
         return len(self._search())
 
-    # создает готовый список словарей с полным именем, ссылкой на страничку и списком ссылок на фото
+
     def filter_search(self, offset=0) -> list:
         list_to_bot = []
         for user in self._search(offset=0):
