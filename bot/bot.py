@@ -2,7 +2,7 @@
 from vk_api.longpoll import VkLongPoll, VkEventType
 from config import main_token, user_token, user_vk_id
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
-from pprint import pprint
+
 
 import requests
 import vk_api
@@ -75,6 +75,8 @@ class VKinderBot:
 
 
 
+
+
     def _search(self, offset=0) -> list:
         method = "users.search"
         params = {
@@ -97,18 +99,18 @@ class VKinderBot:
         for user in self._search(offset=0):
             dictionary = {"fullname": f"{user.get('first_name', '')} {user.get('last_name', '')}",
                           "link": f"https://vk.com/id{user.get('id', '')}",
-                          "photos": self._get_needed_photos(user.get('id', ''))}
+                          "photos": self._get_needed_photos(user.get("id", ""))}
             list_to_bot.append(dictionary)
         return list_to_bot
 
-# забирает каждые 20 людей, сдвигая offset
+# двунаправленный итератор
 class BotIter:
 
     def __init__(self, users):
         self.users = users
         self.inner_cursor = -1
         self.offset = 0
-        self.stop_offset = 200
+        self.stop_offset = 1000
 
     def __iter__(self):
         return self
@@ -123,12 +125,24 @@ class BotIter:
             raise StopIteration
         return self.users[self.inner_cursor]
 
+    def prev(self):
+        self.inner_cursor -= 1
+        if self.inner_cursor < 0:
+            return "Предыдущих элементов нет"
+        return self.users[self.inner_cursor]
 
-user_1 = VKinderBot("Орел", 1, 25)
-users = user_1.filter_search()
 
-for j, element in enumerate(BotIter(users)):
-    print(j, element)
+user_1 = VKinderBot("Орел", 1, 30)
+users_search = BotIter(user_1.filter_search())
+
+while True:
+    answer = input()
+    if answer == "вперед":
+        print(next(users_search))
+    elif answer == "назад":
+        print(users_search.prev())
+    else:
+        break
 
 
 
