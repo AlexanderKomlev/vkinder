@@ -6,6 +6,7 @@ from datetime import datetime as dt
 from bd.vkinder_bd_models import Users
 from pprint import pprint
 
+
 import requests
 import vk_api
 import sqlalchemy
@@ -58,12 +59,6 @@ class VKinderBot:
                                                  'random_id': 0,
                                                  'keyboard': keyboard})
 
-    def _send_message2(self, id: int, message: str):
-
-        self.vk_session.method('messages.send', {'user_id': id,
-                                                 'message': message,
-                                                 'random_id': 0})
-
     def _user_data(self, user_id: int) -> dict:
 
         params = self.common_params
@@ -105,7 +100,7 @@ class VKinderBot:
         for user in self._search(offset=0):
             dictionary = {"fullname": f"{user.get('first_name', '')} {user.get('last_name', '')}",
                           "link": f"https://vk.com/id{user.get('id', '')}",
-                          "photos": self._get_needed_photos(user.get('id', ''))}
+                          "photos": self._get_needed_photos(user.get("id", ""))}
             list_to_bot.append(dictionary)
         return list_to_bot
 
@@ -141,11 +136,8 @@ class VKinderBot:
 
 
 
-
-
-
-
 # забирает каждые 20 людей, сдвигая offset
+# двунаправленный итератор
 class BotIter:
 
     def __init__(self, search_func):
@@ -153,7 +145,7 @@ class BotIter:
         self.users = search_func()
         self.inner_cursor = -1
         self.offset = 0
-        self.stop_offset = 200
+        self.stop_offset = 1000
 
     def __iter__(self):
         return self
@@ -168,12 +160,31 @@ class BotIter:
             raise StopIteration
         return self.users[self.inner_cursor]
 
+    def prev(self):
+        self.inner_cursor -= 1
+        if self.inner_cursor < 0:
+            return "Предыдущих элементов нет"
+        return self.users[self.inner_cursor]
+
 
 # user_1 = VKinderBot("Орел", 1, 25)
 # users = user_1.filter_search()
 #
 # for j, element in enumerate(BotIter(users)):
 #     print(j, element)
+
+
+user_1 = VKinderBot("Орел", 1, 30)
+users_search = BotIter(user_1.filter_search())
+
+while True:
+    answer = input()
+    if answer == "вперед":
+        print(next(users_search))
+    elif answer == "назад":
+        print(users_search.prev())
+    else:
+        break
 
 
 
