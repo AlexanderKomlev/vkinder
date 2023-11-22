@@ -1,5 +1,5 @@
-from sqlalchemy import Column, String, Integer, CheckConstraint, func, ForeignKey
-from sqlalchemy.orm import declarative_base, relationship, deferred
+from sqlalchemy import Column, String, Integer, ForeignKey
+from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 
@@ -7,52 +7,55 @@ Base = declarative_base()
 class Users(Base):
     __tablename__ = "users"
 
-    user_id = Column(Integer, primary_key=True, unique=True)
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, unique=True, nullable=False)
     fullname = Column(String(40), nullable=False)
-    age = deferred(Column(Integer, nullable=False))
-    gender = deferred(Column(Integer, nullable=False))  # 1 - женщина, 2 - мужчина
+    age = Column(Integer, nullable=False)
+    gender = Column(Integer, nullable=False)  # 1 - женщина, 2 - мужчина
     city = Column(String(20), nullable=False)
 
     def __str__(self):
-        return f"{self.user_id}: ({self.fullname}, {self.age}, {self.gender}, {self.city})"
+        return f"{self.id}: ({self.user_id}, {self.fullname}, {self.age}, {self.gender}, {self.city})"
 
 
 class Favorites(Base):
     __tablename__ = "favorites"
 
-    favorite_user_id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True)
+    favorite_user_id = Column(Integer, nullable=False)
     fullname = Column(String(40), nullable=False)
-    user_id = Column(Integer, ForeignKey(Users.user_id), nullable=False)
+    user_id = Column(Integer, ForeignKey(Users.id), nullable=False)
 
     user = relationship(Users, backref=__tablename__)
 
     def __str__(self):
-        return f"{self.favorite_user_id}: ({self.fullname}, {self.user_id})"
+        return f"{self.id}: ({self.favorite_user_id}, {self.fullname}, {self.user_id})"
 
 
 class BlackList(Base):
     __tablename__ = "black_list"
 
-    user_id = Column(Integer, ForeignKey(Users.user_id), primary_key=True, nullable=False, unique=True)
-    black_user_id = Column(Integer)
+    id = Column(Integer, primary_key=True)
+    black_user_id = Column(Integer, nullable=False)
+    user_id = Column(Integer, ForeignKey(Users.id), nullable=False)
 
     user = relationship(Users, backref=__tablename__)
 
     def __str__(self):
-        return f"{self.blist_user_id}: {self.user_id}"
+        return f"{self.id}: ({self.black_user_id}, {self.user_id})"
 
 
 class Photos(Base):
     __tablename__ = "photos"
 
     photo_id = Column(Integer, primary_key=True)
-    link = Column(String, unique=True, nullable=False)
-    user_id = Column(Integer, ForeignKey(Favorites.favorite_user_id), nullable=False)
+    link = Column(String, nullable=False)
+    favorite_user_id = Column(Integer, ForeignKey(Favorites.id), nullable=False)
 
     favorite_user = relationship(Favorites, backref=__tablename__)
 
     def __str__(self):
-        return f"{self.photo_id}: ({self.link}, {self.user_id})"
+        return f"{self.photo_id}: ({self.link}, {self.favorite_user_id})"
 
 
 def create_table(engine):
