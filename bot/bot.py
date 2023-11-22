@@ -2,19 +2,23 @@
 from vk_api.longpoll import VkLongPoll, VkEventType
 from config import main_token, user_token, user_vk_id
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
+from datetime import datetime as dt
+from bd.vkinder_bd_models import Users
 from pprint import pprint
 
 import requests
 import vk_api
+import sqlalchemy
 
 
 class VKinderBot:
 
-    def __init__(self, city, gender, age):
+    def __init__(self, city, gender, age, session):
 
+        self.session = session
         self.vk_session = vk_api.VkApi(token=main_token)
         self.longpoll = VkLongPoll(self.vk_session)
-        self.session = vk_api.VkApi(token=user_token) # использовала в _search
+        self.session = vk_api.VkApi(token=user_token)  # использовала в _search
         self.base_url = 'https://api.vk.com/method/'
         self.common_params = {'access_token': user_token, 'v': 5.131}
         self.city = city
@@ -54,26 +58,31 @@ class VKinderBot:
                                                  'random_id': 0,
                                                  'keyboard': keyboard})
 
-    def run_bot(self, session):
+    def _send_message2(self, id: int, message: str):
 
-        for event in self.longpoll.listen():
-            if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
-                if event.text.lower() == 'start':
-                    keyboard = VkKeyboard(inline=True)
-                    keyboard.add_button('В черный список', color=VkKeyboardColor.NEGATIVE)
-                    keyboard.add_button('В избранное', color=VkKeyboardColor.POSITIVE)
-                    keyboard.add_line()
-                    keyboard.add_button('Назад', color=VkKeyboardColor.SECONDARY)
-                    keyboard.add_button('Пропустить', color=VkKeyboardColor.PRIMARY)
-                    keyboard.add_line()
-                    keyboard.add_button('Показать избранное', color=VkKeyboardColor.POSITIVE)
+        self.vk_session.method('messages.send', {'user_id': id,
+                                                 'message': message,
+                                                 'random_id': 0})
 
-                    self._send_message(event.chat_id, 'Выберите действие:', keyboard.get_keyboard())
-                id = event.user_id
-                # if event.text == '[club223509501|@club223509501] 1' and event.user_id == id:
-                #     print(id)
+    def _user_data(self, user_id: int) -> dict:
 
+        params = self.common_params
+        params.update({
+            'user_ids': user_id,
+            'fields': 'city, bdate, sex'
+        })
+        response = requests.get(f'{self.base_url}/users.get', params=params)
+        response = response.json().get('response', {})[0]
+        age = (dt.date(dt.today()) - dt.date(dt.strptime(response.get('bdate'), '%d.%m.%Y'))).days / 365
+        user = {
+            'user_id': response.get('id'),
+            'fullname': response.get('first_name') + ' ' + response.get('last_name'),
+            'age': int(age),
+            'gender': response.get('sex'),
+            'city': response.get('city').get('title'),
+        }
 
+        return user
 
     def _search(self, offset=0) -> list:
         method = "users.search"
@@ -82,15 +91,14 @@ class VKinderBot:
             "hometown": self.city,
             "sex": self.gender,
             "age_from": self.age - 3,
-            "age_to": self.age + 3
+            "age_to": self.age + 3,
+            "count": 1
         }
         response = self.session.method(method, values=params)
-        return list(filter(lambda x: x.get("is_closed", "") == False, response.get("items", "")))
-
+        return list(filter(lambda x: x.get("is_closed", "") is False, response.get("items", "")))
 
     def find_count(self) -> int:
         return len(self._search())
-
 
     def filter_search(self, offset=0) -> list:
         list_to_bot = []
@@ -101,11 +109,48 @@ class VKinderBot:
             list_to_bot.append(dictionary)
         return list_to_bot
 
+    def run_bot(self, session):
+
+        for event in self.longpoll.listen():
+            if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
+                if event.text.lower() == 'start':
+                    user = self._user_data(event.user_id)
+                    session.add(Users(**user))
+                    session.commit()
+                    next_person = BotIter(self.filter_search)
+
+
+
+                    keyboard = VkKeyboard(inline=True)
+                    keyboard.add_button('В черный список', color=VkKeyboardColor.NEGATIVE)
+                    keyboard.add_button('В избранное', color=VkKeyboardColor.POSITIVE)
+                    keyboard.add_line()
+                    keyboard.add_button('Назад', color=VkKeyboardColor.SECONDARY)
+                    keyboard.add_button('Пропустить', color=VkKeyboardColor.PRIMARY)
+                    keyboard.add_line()
+                    keyboard.add_button('Показать избранное', color=VkKeyboardColor.POSITIVE)
+
+                    self._send_message(event.chat_id, 'Выберите действие:', keyboard.get_keyboard())
+
+                    # if event.text == '[club223509501|@club223509501] Пропустить' and event.user_id == id:
+
+
+
+
+
+
+
+
+
+
+
+
 # забирает каждые 20 людей, сдвигая offset
 class BotIter:
 
-    def __init__(self, users):
-        self.users = users
+    def __init__(self, search_func):
+        self.search_func = search_func
+        self.users = search_func()
         self.inner_cursor = -1
         self.offset = 0
         self.stop_offset = 200
@@ -118,17 +163,17 @@ class BotIter:
         if self.inner_cursor >= len(self.users):
             self.inner_cursor = 0
             self.offset += 20
-            self.users = user_1.filter_search(self.offset)
+            self.users = self.search_func(self.offset)
         if self.offset >= self.stop_offset:
             raise StopIteration
         return self.users[self.inner_cursor]
 
 
-user_1 = VKinderBot("Орел", 1, 25)
-users = user_1.filter_search()
-
-for j, element in enumerate(BotIter(users)):
-    print(j, element)
+# user_1 = VKinderBot("Орел", 1, 25)
+# users = user_1.filter_search()
+#
+# for j, element in enumerate(BotIter(users)):
+#     print(j, element)
 
 
 

@@ -7,16 +7,11 @@ Base = declarative_base()
 class Users(Base):
     __tablename__ = "users"
 
-    user_id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, primary_key=True, unique=True)
     fullname = Column(String(40), nullable=False)
-    age = deferred(Column(String, nullable=False))
-    gender = deferred(Column(String, nullable=False))
+    age = deferred(Column(Integer, nullable=False))
+    gender = deferred(Column(Integer, nullable=False))  # 1 - женщина, 2 - мужчина
     city = Column(String(20), nullable=False)
-
-    __table_args__ = (
-        CheckConstraint(func.length(age.expression) == 2),
-        CheckConstraint(func.length(gender.expression) == 1)
-    )
 
     def __str__(self):
         return f"{self.user_id}: ({self.fullname}, {self.age}, {self.gender}, {self.city})"
@@ -34,16 +29,18 @@ class Favorites(Base):
     def __str__(self):
         return f"{self.favorite_user_id}: ({self.fullname}, {self.user_id})"
 
+
 class BlackList(Base):
     __tablename__ = "black_list"
 
-    black_user_id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey(Users.user_id), nullable=False)
+    user_id = Column(Integer, ForeignKey(Users.user_id), primary_key=True, nullable=False, unique=True)
+    black_user_id = Column(Integer)
 
     user = relationship(Users, backref=__tablename__)
 
     def __str__(self):
         return f"{self.blist_user_id}: {self.user_id}"
+
 
 class Photos(Base):
     __tablename__ = "photos"
