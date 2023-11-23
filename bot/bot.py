@@ -1,15 +1,13 @@
 from vk_api.longpoll import VkLongPoll, VkEventType
-from config import bot_token, app_token, user_vk_id
+from config import bot_token, app_token
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 from datetime import datetime as dt
 from bd.vkinder_bd_models import Users, Favorites, BlackList
 from pprint import pprint
 
 
-
 import requests
 import vk_api
-import sqlalchemy
 
 
 class VKinderBot:
@@ -19,7 +17,7 @@ class VKinderBot:
         self.session = session
         self.vk_group_session = vk_api.VkApi(token=bot_token)
         self.longpoll = VkLongPoll(self.vk_group_session)
-        self.vk_app_session = vk_api.VkApi(token=app_token)  # использовала в _search
+        self.vk_app_session = vk_api.VkApi(token=app_token)
         self.base_url = 'https://api.vk.com/method/'
         self.common_params = {'access_token': app_token, 'v': 5.131}
         self.city = None
@@ -32,7 +30,7 @@ class VKinderBot:
 
         params = self.common_params
         params.update({
-            'access_token': user_token,
+            'access_token': app_token,
             'v': 5.131,
             'owner_id': user_id,
             'album_id': 'profile',
@@ -153,8 +151,6 @@ class VKinderBot:
 
                 if event.text.lower() == 'start':
                     print('ветка старт')
-
-                    self.next_person = BotIter(self.filter_search)
                     user = self._user_data(event)
                     if 'age' not in user:
                         self._send_message(event.chat_id, 'Введите ваш возраст')
@@ -165,6 +161,8 @@ class VKinderBot:
                     self.city = user.get('city')
                     self.gender = user.get('gender')
                     self.age = user.get('age')
+                    self.next_person = BotIter(self.filter_search)
+
                     self.session.add(Users(**user))
                     self.session.commit()
                     person = self.next_person.__next__()
