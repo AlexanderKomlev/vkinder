@@ -23,10 +23,9 @@ if __name__ == '__main__':
 
     bot = VKinderBot('Орел', 1, 25, session)
     # print(bot._user_data(182085643))
-    # bot.run_bot(session)
-    # response = bot._get_needed_photos(620520542)
+    bot.run_bot()
+    # response = bot.filter_search(620520542)
     # pprint(response)
-    # print(bot._search())
-    bot._send_message2(620520542, 'test')
+
 
     session.close()
