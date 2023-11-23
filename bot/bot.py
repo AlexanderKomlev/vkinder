@@ -2,7 +2,7 @@ from vk_api.longpoll import VkLongPoll, VkEventType
 from config import bot_token, app_token
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 from datetime import datetime as dt
-from bd.vkinder_bd_models import Users, Favorites, BlackList
+from bd.vkinder_bd_models import Users, Viewed, BlackList
 from pprint import pprint
 
 
@@ -25,6 +25,7 @@ class VKinderBot:
         self.age = None
         self.next_person = None
         self.buffer = None
+        self.status = 0
 
     def _get_photos_list(self, user_id: int) -> list:
 
@@ -107,7 +108,7 @@ class VKinderBot:
         list_to_bot = []
         for user in self._search(offset=0):
             dictionary = {"fullname": f"{user.get('first_name', '')} {user.get('last_name', '')}",
-                          "user_id": user.get('id', ''),
+                          "viewed_user_id": user.get('id', ''),
                           "photos": self._get_needed_photos(user.get('id', ''))}
             list_to_bot.append(dictionary)
         return list_to_bot
@@ -134,12 +135,10 @@ class VKinderBot:
 
     def show_bd(self):
         for item in self.session.query(Users).all():
-            print(type(item))
             print(item)
 
     def show_bd2(self):
-        for item in self.session.query(Favorites).all():
-            print(item)
+        print(self.session.query(Viewed.status).all())
 
     def run_bot(self):
 
@@ -151,6 +150,11 @@ class VKinderBot:
 
                 if event.text.lower() == 'start':
                     print('ветка старт')
+
+                    if self.status == 1:
+                        self._send_message(event.chat_id, 'Выберите действие:', self._get_full_keyboard())
+                        continue
+                    self.status = 1
                     user = self._user_data(event)
                     if 'age' not in user:
                         self._send_message(event.chat_id, 'Введите ваш возраст')
@@ -168,6 +172,7 @@ class VKinderBot:
                     person = self.next_person.__next__()
                     self.buffer = person
                     photos = str(person.get('photos')).strip("'[]'").replace(' ', '').replace("'", "")
+                    self.session.add(Viewed(**person, status=0, user_id=user_id))
                     self._send_message(event.chat_id,
                                        message=f"{person.get('fullname')}\nhttps://vk.com/{person.get('link')}",
                                        attachment=photos, )
@@ -179,27 +184,28 @@ class VKinderBot:
                     user.update({'age': age})
                     self._send_message(event.chat_id, 'Напишите: начать')
 
-                elif ((event.text.split(' ')[-1] == 'Пропустить' or event.text.split(' ')[-1] == 'Дальше')
+                elif (event.text.split(' ')[-1] == 'Пропустить' or event.text.split(' ')[-1] == 'Дальше'
                       and event.user_id == user_id):
                     print('ветка далее')
 
                     person = self.next_person.__next__()
-                    self.buffer = person
-                    photos = str(person.get('photos')).strip("'[]'").replace(' ', '').replace("'", "")
-                    self._send_message(event.chat_id,
-                                       message=f"{person.get('fullname')}\nhttps://vk.com/{person.get('link')}",
-                                       attachment=photos, )
-                    self._send_message(event.chat_id, 'Выберите действие:', self._get_full_keyboard())
+                    while person.get('viewed_user_id') in self.session.query(Viewed.viewed_user_id).all():
+                        continue
+                    else:
+                        self.buffer = person
+                        photos = str(person.get('photos')).strip("'[]'").replace(' ', '').replace("'", "")
+                        self.session.add(Viewed(**person, status=0, user_id=user_id))
+                        self.session.commit()
+                        self._send_message(event.chat_id,
+                                           message=f"{person.get('fullname')}\nhttps://vk.com/{person.get('link')}",
+                                           attachment=photos, )
+                        self._send_message(event.chat_id, 'Выберите действие:', self._get_full_keyboard())
 
                 elif event.text.split(' ')[-1] == 'В_избранное' and event.user_id == user_id:
                     print('ветка избранное')
-
-                    self.session.add(Favorites(
-                        fullname=self.buffer.get('fullname'),
-                        favorite_user_id=self.buffer.get('user_id'),
-                        user_id=user_id,
-                        photos=self.buffer.get('photos'),
-                    ))
+                    query = (self.session.query(Viewed).filter(Viewed.user_id == user_id).
+                             filter(Viewed.viewed_user_id == self.buffer.get('viewed_user_id')))
+                    query.update({Viewed.status: 1})
                     self.session.commit()
                     self._send_message(event.chat_id, 'Добавлено в избранное')
                     self._send_message(event.chat_id, 'Выберите действие:', self._get_keyboard())
@@ -216,17 +222,21 @@ class VKinderBot:
                     self._send_message(event.chat_id, 'Выберите действие:', self._get_keyboard())
 
                 elif event.text.split(' ')[-1] == 'Показать_избранное' and event.user_id == user_id:
-                    print('ветка показать избранное')
 
-                    for item in self.session.query(Favorites).filter(Favorites.user_id == user_id).all():
+                    print('ветка показать избранное')
+                    query = self.session.query(Viewed).filter(Viewed.status == 1).filter(Viewed.user_id == user_id)
+                    for item in query.all():
                         photos = item.photos.strip("'{}'").replace(' ', '').replace("'", "")
-                        print(photos)
                         self._send_message(event.chat_id,
-                                           message=f"{item.fullname}\nhttps://vk.com/{item.favorite_user_id}",
+                                           message=f"{item.fullname}\nhttps://vk.com/{item.viewed_user_id}",
                                            attachment=photos)
                     keyboard = VkKeyboard(inline=True)
                     keyboard.add_button('Дальше', color=VkKeyboardColor.PRIMARY)
                     self._send_message(event.chat_id, 'Выберите действие:', keyboard.get_keyboard())
+                elif event.text.split(' ')[-1] == 'bd' and event.user_id == user_id:
+                    self.show_bd2()
+
+
 
 
 

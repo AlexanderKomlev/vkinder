@@ -3,6 +3,7 @@ from bd.vkinder_bd_models import create_table
 from sqlalchemy.orm import sessionmaker
 from bot.bot import VKinderBot
 from pprint import pprint
+from bd.vkinder_bd_models import Viewed, Users
 
 
 import sqlalchemy
@@ -24,8 +25,12 @@ if __name__ == '__main__':
     bot = VKinderBot('Орел', 1, 25, session)
     # print(bot._user_data(182085643))
     bot.run_bot()
+    # bot.show_bd()
     # response = bot.filter_search(620520542)
     # pprint(response)
+
+
+
 
 
     session.close()

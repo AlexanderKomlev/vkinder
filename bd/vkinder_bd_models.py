@@ -24,14 +24,15 @@ class Viewed(Base):
     id = Column(Integer, primary_key=True)
     fullname = Column(String(40), nullable=False)
     viewed_user_id = Column(Integer, nullable=False)
-    status = Column(Integer, nullable=False)  # 0 просмотрено, 1 избранное
     photos = Column(String)
+    status = Column(Integer, nullable=False)  # 0 просмотрено, 1 избранное
     user_id = Column(Integer, ForeignKey(Users.user_id, ondelete="CASCADE"), nullable=False)
 
     user = relationship(Users, backref=__tablename__)
 
     def __str__(self):
         return f"{self.id}: ({self.favorite_user_id}, {self.fullname}, {self.user_id})"
+
 
 class BlackList(Base):
     __tablename__ = "black_list"
@@ -44,6 +45,7 @@ class BlackList(Base):
 
     def __str__(self):
         return f"{self.id}: ({self.black_user_id}, {self.user_id})"
+
 
 def create_table(engine):
     Base.metadata.drop_all(engine)
