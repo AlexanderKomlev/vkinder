@@ -4,12 +4,8 @@ from bd.vkinder_bd_models import create_table
 from bd.vkinder_bd_main import engine
 
 
-
-
-
-
 if __name__ == '__main__':
 
     create_table(engine)
-    bot = VKinderBot(app_token)
+    bot = VKinderBot()
     bot.run_bot()

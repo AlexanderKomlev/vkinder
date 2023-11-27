@@ -1,10 +1,12 @@
 from sqlalchemy import Column, String, Integer, ForeignKey
 from sqlalchemy.orm import declarative_base, relationship
 
+
 Base = declarative_base()
 
 
 class Users(Base):
+
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
@@ -17,7 +19,9 @@ class Users(Base):
     def __str__(self):
         return f"{self.id}: ({self.user_id}, {self.fullname}, {self.age}, {self.gender}, {self.city})"
 
+
 class ParametrOffset(Base):
+
     __tablename__ = "parametr_offest"
 
     id = Column(Integer, primary_key=True)
@@ -29,7 +33,9 @@ class ParametrOffset(Base):
     def __str__(self):
         return f"{self.id}: ({self.user_id}, {self.offset})"
 
+
 class Favorite(Base):
+
     __tablename__ = "favorite"
 
     id = Column(Integer, primary_key=True)
@@ -46,6 +52,7 @@ class Favorite(Base):
 
 
 class BlackList(Base):
+
     __tablename__ = "black_list"
 
     id = Column(Integer, primary_key=True)
@@ -62,5 +69,5 @@ class BlackList(Base):
 
 
 def create_table(engine):
-    # Base.metadata.drop_all(engine)
+    Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
