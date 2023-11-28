@@ -2,6 +2,16 @@ from sqlalchemy import Column, String, Integer, ForeignKey
 from sqlalchemy.orm import declarative_base, relationship
 
 
+import logging
+
+
+logging.basicConfig(level=logging.DEBUG,
+                    filename='logfile.log',
+                    encoding='utf-8',
+                    filemode='a',
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
+
 Base = declarative_base()
 
 
@@ -71,3 +81,4 @@ class BlackList(Base):
 def create_table(engine):
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
+    logging.debug('В БД созданы таблицы "users", "parametr_offset", "favorite", "black_list"')

@@ -8,7 +8,14 @@ from bd.vkinder_bd_main import (write_users, write_black_list, check_black, chec
 
 import vk_api
 import requests
-import time
+import logging
+
+
+logging.basicConfig(level=logging.DEBUG,
+                    filename='logfile.log',
+                    encoding='utf-8',
+                    filemode='a',
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 class VKinderBot:
@@ -21,6 +28,7 @@ class VKinderBot:
         self.session = vk_api.VkApi(token=app_token)
         self.common_params = {'access_token': bot_token, 'v': 5.131}
         self.offset = 0
+        logging.info('Инициализация класса VKinderBot')
 
     def _get_photos_list(self, user_id: int) -> list:
 
@@ -32,6 +40,7 @@ class VKinderBot:
             'extended': 1
         })
         response = requests.get(f'{self.base_url}/photos.get', params=params)
+        logging.info('Завершен запрос на получение фотографий')
 
         return response.json().get('response', {}).get('items', [])
 
@@ -89,6 +98,7 @@ class VKinderBot:
             "fields": "status"
         }
         response = self.session.method(method, values=params)
+        logging.info('Поиск профилей завершен успешно')
 
         return list(filter(lambda x: x.get("is_closed", "") is False, response.get("items", "")))
 
@@ -122,6 +132,7 @@ class VKinderBot:
                                                        'random_id': get_random_id(),
                                                        'keyboard': keyboard,
                                                        'attachment': attachment})
+        logging.info(f'Пользователю отправлено сообщение: {message}')
 
     def _send_start_keyboard(self):
 
@@ -163,17 +174,19 @@ class VKinderBot:
 
     def run_bot(self):
 
+        logging.debug('Запуск бота')
+
         favorite_flag = False
         welcome_flag = True
         for event in self.longpoll.listen():
             if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
-
                 if event.text.lower():
 
                     if welcome_flag:
                         params_of_user = self._user_data(event.user_id)
                         if not check_user_bot(event.user_id):
                             write_users(**params_of_user)
+                            logging.info('Данные пользователя внесены в базу данных')
                         current_iter = BotIter(params_of_user, get_offset(event.user_id), self.filter_search)
                         self._send_message(event.user_id,
                                            message=f'Привет, {self._get_name(event.user_id)}! Мы подобрали для тебя пары. Жми начать 👇',
@@ -184,6 +197,7 @@ class VKinderBot:
 
                 if event.text.lower() == 'начать':
 
+                    logging.info('Пользователь перешел по ветке "начать"')
                     if welcome_flag is False:
                         person = next(current_iter)
                         self._send_message(event.user_id,
@@ -196,6 +210,7 @@ class VKinderBot:
                     if welcome_flag is False:
                         if event.text.lower() == "в черный список":
 
+                            logging.info('Пользователь перешел по ветке "в черный список"')
                             if not check_black(person.get("user_id")):
                                 data_for_table = {
                                     "fullname": person.get("fullname"),
@@ -205,11 +220,13 @@ class VKinderBot:
                                     "user_id": event.user_id
                                 }
                                 write_black_list(**data_for_table)
+                                logging.info('Информация о пользователе добавлена в БД в таблицу "black_list"')
                             self._send_message(event.user_id,
                                                message=f"Добавлено в черный список {person.get('fullname')}")
 
                         if event.text.lower() == "в избранное":
 
+                            logging.info('Пользователь перешел по ветке "в избранное"')
                             if not check_favorite(person.get("user_id")):
                                 favorite_flag = True
                                 data_for_table = {
@@ -220,6 +237,7 @@ class VKinderBot:
                                     "user_id": event.user_id
                                 }
                                 write_favorite(**data_for_table)
+                                logging.info('Информация о пользователе добавлена в БД в таблицу "favorite"')
                             self._send_message(event.user_id,
                                                message=f"Добавлено в избранное {person.get('fullname')}")
 
@@ -231,6 +249,7 @@ class VKinderBot:
 
                 if event.text.lower() == 'назад':
 
+                    logging.info('Пользователь перешел по ветке "назад"')
                     if welcome_flag is False:
                         person = current_iter.prev()
                         self._send_message(event.user_id,
@@ -240,6 +259,7 @@ class VKinderBot:
 
                 if event.text.lower() == "просмотреть избранное":
 
+                    logging.info('Пользователь перешел по ветке "просмотреть избранное"')
                     if welcome_flag is False:
                         self._send_message(event.user_id,
                                            message=f"Вы находитесь в избранном")
@@ -247,12 +267,14 @@ class VKinderBot:
                             self._send_message(event.user_id,
                                                message=f"{user[0]}\n{user[1]}",
                                                attachment=user[2])
+                        logging.info('Выведена информация из таблицы "favorite"')
                         self._send_message(event.user_id,
                                            message="нажмите, чтобы продолжить поиск или завершить",
                                            keyboard=self._send_continue_complete_keyboard())
 
                 if event.text.lower() == "завершить":
 
+                    logging.info('Пользователь перешел по ветке "завершить"')
                     if welcome_flag is False:
                         self._send_message(event.user_id,
                                            message=f"До новых встреч!")
@@ -278,6 +300,7 @@ class BotIter:
         self.users = self.search_func(self.params, self.offset)
         self.stop_offset = 1000
         self.inner_cursor = -1
+        logging.info('Инициализация итератора')
 
     def __iter__(self):
         return self
