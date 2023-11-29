@@ -32,6 +32,7 @@ class VKinderBot:
         logging.info('Инициализация класса VKinderBot')
 
     def _get_photos_list(self, user_id: int) -> list:
+        '''Получает фотографии пользователя из альбома profile'''
 
         params = self.common_params
         params.update({
@@ -46,6 +47,7 @@ class VKinderBot:
         return response.json().get('response', {}).get('items', [])
 
     def _get_needed_photos(self, user_id: int) -> list or str:
+        '''Отбирает три самых пополярных по количеству лайков фотографии'''
 
         photos_list = self._get_photos_list(user_id)
         if not photos_list:
@@ -58,6 +60,7 @@ class VKinderBot:
         return ",".join(photo_id_list)
 
     def _user_data(self, user_id) -> dict:
+        '''Получает данные о пользователе бота'''
 
         params = self.common_params
         params.update({
@@ -86,6 +89,7 @@ class VKinderBot:
         return user
 
     def _search(self, params: dict, offset: int) -> list:
+        '''Осуществляет поиск людей по определенным параметрам'''
 
         method = "users.search"
         age = params.get("age")
@@ -104,6 +108,7 @@ class VKinderBot:
         return list(filter(lambda x: x.get("is_closed", "") is False, response.get("items", "")))
 
     def _get_name(self, user_id):
+        '''Получает имя пользователя'''
 
         method = "users.get"
         params = {
@@ -114,6 +119,7 @@ class VKinderBot:
         return result.get("first_name")
 
     def filter_search(self, params: dict, offset: int) -> list:
+        '''Возвращает список словарей с информацией по найденным людям'''
 
         list_to_iter = []
         people = self._search(params, offset)
@@ -127,6 +133,7 @@ class VKinderBot:
         return list_to_iter
 
     def _send_message(self, id: int, message: str, keyboard=None, attachment=None):
+        '''Отправляет сообщение пользователю бота'''
 
         self.vk_group_session.method('messages.send', {'user_id': id,
                                                        'message': message,
@@ -136,6 +143,7 @@ class VKinderBot:
         logging.info(f'Пользователю отправлено сообщение: {message}')
 
     def _send_start_keyboard(self):
+        '''Добавляет клавиатуру к сообщению'''
 
         keyboard = VkKeyboard(inline=False, one_time=True)
         keyboard.add_button("начать", color=VkKeyboardColor.PRIMARY)
@@ -143,6 +151,7 @@ class VKinderBot:
         return keyboard.get_keyboard()
 
     def _send_full_keyboard(self, favorite_flag):
+        '''Добавляет клавиатуру к сообщению'''
 
         if favorite_flag:
             keyboard = VkKeyboard(inline=False)
@@ -166,6 +175,7 @@ class VKinderBot:
         return keyboard.get_keyboard()
 
     def _send_continue_complete_keyboard(self):
+        '''Добавляет клавиатуру к сообщению'''
 
         keyboard = VkKeyboard(inline=False)
         keyboard.add_button("продолжить", color=VkKeyboardColor.PRIMARY)
@@ -174,6 +184,7 @@ class VKinderBot:
         return keyboard.get_keyboard()
 
     def run_bot(self):
+        '''Выполянет запуск бота'''
 
         logging.debug('Запуск бота')
 
@@ -216,8 +227,6 @@ class VKinderBot:
                                 data_for_table = {
                                     "fullname": person.get("fullname"),
                                     "black_id": person.get("user_id"),
-                                    "link": person.get("link"),
-                                    "photos": person.get("photos"),
                                     "user_id": event.user_id
                                 }
                                 write_black_list(**data_for_table)
@@ -321,5 +330,5 @@ class BotIter:
 
         self.inner_cursor -= 1
         if self.inner_cursor < 0:
-            return "Предыдущих элементов нет"
+            return self.users[0]
         return self.users[self.inner_cursor]

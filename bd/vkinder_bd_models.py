@@ -41,7 +41,7 @@ class ParametrOffset(Base):
     user = relationship(Users, backref=__tablename__)
 
     def __str__(self):
-        return f"{self.id}: ({self.user_id}, {self.offset})"
+        return f"{self.id}: ({self.offset}, {self.user_id})"
 
 
 class Favorite(Base):
@@ -58,7 +58,7 @@ class Favorite(Base):
     user = relationship(Users, backref=__tablename__)
 
     def __str__(self):
-        return f"{self.id}: ({self.fullname}, {self.viewed_user_id}, {self.link}, {self.photos}, {self.user_id})"
+        return f"{self.id}: ({self.fullname}, {self.favorite_id}, {self.link}, {self.photos}, {self.user_id})"
 
 
 class BlackList(Base):
@@ -68,17 +68,15 @@ class BlackList(Base):
     id = Column(Integer, primary_key=True)
     fullname = Column(String(40), nullable=False)
     black_id = Column(Integer, nullable=False)
-    link = Column(String)
-    photos = Column(String)
     user_id = Column(Integer, ForeignKey(Users.user_id, ondelete="CASCADE"), nullable=False)
 
     user = relationship(Users, backref=__tablename__)
 
     def __str__(self):
-        return f"{self.id}: ({self.fullname}, {self.black_user_id}, {self.link}, {self.photos}, {self.user_id})"
+        return f"{self.id}: ({self.fullname}, {self.black_id}, {self.user_id})"
 
 
 def create_table(engine):
-    Base.metadata.drop_all(engine)
+    # Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     logging.debug('В БД созданы таблицы "users", "parametr_offset", "favorite", "black_list"')

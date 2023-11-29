@@ -8,6 +8,7 @@ engine = create_engine(f'{name_driver}://{user}:{password}@localhost:{local_host
 
 
 def write_users(**data):
+    '''Вносит запись в таблицу users'''
 
     with Session(engine) as session:
         session.add(Users(**data))
@@ -15,6 +16,7 @@ def write_users(**data):
 
 
 def write_favorite(**data):
+    '''Вносит запись в таблицу favorite'''
 
     with Session(engine) as session:
         session.add(Favorite(**data))
@@ -22,6 +24,7 @@ def write_favorite(**data):
 
 
 def write_black_list(**data):
+    '''Вносит запись в таблицу blackList'''
 
     with Session(engine) as session:
         session.add(BlackList(**data))
@@ -29,6 +32,7 @@ def write_black_list(**data):
 
 
 def write_parametr_offset(**data):
+    '''Вносит запись в таблицу parametr_Offset'''
 
     with Session(engine) as session:
         session.add(ParametrOffset(**data))
@@ -36,6 +40,7 @@ def write_parametr_offset(**data):
 
 
 def check_user_bot(user_id):
+    '''Проверяет наличие записи о пользователе по его user_id в таблице users'''
 
     with Session(engine) as session:
         user = session.query(Users).filter(Users.user_id == user_id).first()
@@ -43,6 +48,7 @@ def check_user_bot(user_id):
 
 
 def check_favorite(user_id):
+    '''Проверяет наличие записи о найденном человеке по его user_id в таблице favorite'''
 
     with Session(engine) as session:
         user = session.query(Favorite).filter(Favorite.favorite_id == user_id).first()
@@ -50,6 +56,7 @@ def check_favorite(user_id):
 
 
 def check_black(user_id):
+    '''Проверяет наличие записи о найденном человеке по его user_id в таблице blackList'''
 
     with Session(engine) as session:
         user = session.query(BlackList).filter(BlackList.black_id == user_id).first()
@@ -57,6 +64,7 @@ def check_black(user_id):
 
 
 def show_favorites(user_id):
+    '''Генерирует последовательность людей, добавленных пользователем в избранное'''
 
     with Session(engine) as session:
         result = session.query(Favorite).filter(Favorite.user_id == user_id).all()
@@ -65,6 +73,7 @@ def show_favorites(user_id):
 
 
 def get_offset(user_id):
+    '''Фиксирует параметр offset'''
 
     with Session(engine) as session:
         result = session.query(ParametrOffset).filter(ParametrOffset.user_id == user_id).first()
@@ -74,6 +83,7 @@ def get_offset(user_id):
 
 
 def change_offset(user_id, offset):
+    '''Изменяет параметр offset'''
 
     with Session(engine) as session:
         result = session.query(ParametrOffset).filter(ParametrOffset.user_id == user_id).first()
