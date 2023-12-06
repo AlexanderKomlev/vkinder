@@ -1,9 +1,18 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from bd.vkinder_bd_models import *
-from config import name_driver, local_host, user, password, database
+from db.vkinder_db_models import *
+from dotenv import load_dotenv
 
 
+import os
+
+
+load_dotenv()
+name_driver = os.getenv('NAME_DRIVER')
+user = os.getenv('USER')
+password = os.getenv('PASSWORD')
+local_host = os.getenv('LOCAL_HOST')
+database = os.getenv('DATABASE')
 engine = create_engine(f'{name_driver}://{user}:{password}@localhost:{local_host}/{database}')
 
 

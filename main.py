@@ -1,6 +1,6 @@
 from bot.bot import VKinderBot
-from bd.vkinder_bd_models import create_table
-from bd.vkinder_bd_main import engine
+from db.vkinder_db_models import create_table
+from db.vkinder_db_main import engine
 
 
 if __name__ == '__main__':

@@ -1,15 +1,16 @@
 from vk_api.longpoll import VkLongPoll, VkEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 from vk_api.utils import get_random_id
-from config import app_token, bot_token
 from datetime import datetime as dt
-from bd.vkinder_bd_main import (write_users, write_black_list, check_black, check_favorite, check_user_bot,
+from dotenv import load_dotenv
+from db.vkinder_db_main import (write_users, write_black_list, check_black, check_favorite, check_user_bot,
                                 show_favorites, get_offset, write_parametr_offset, write_favorite, change_offset)
 
 
 import vk_api
 import requests
 import logging
+import os
 
 
 logging.basicConfig(level=logging.DEBUG,
@@ -17,18 +18,22 @@ logging.basicConfig(level=logging.DEBUG,
                     encoding='utf-8',
                     filemode='a',
                     format='%(asctime)s - %(levelname)s - %(message)s')
+load_dotenv()
 
 
 class VKinderBot:
 
     def __init__(self):
 
+        self.bot_token = os.getenv('BOT_TOKEN')
+        self.app_token = os.getenv('APP_TOKEN')
         self.base_url = "https://api.vk.com/method"
-        self.vk_group_session = vk_api.VkApi(token=bot_token)
+        self.vk_group_session = vk_api.VkApi(token=self.bot_token)
         self.longpoll = VkLongPoll(self.vk_group_session)
-        self.session = vk_api.VkApi(token=app_token)
-        self.common_params = {'access_token': bot_token, 'v': 5.131}
+        self.session = vk_api.VkApi(token=self.app_token)
+        self.common_params = {'access_token': self.app_token, 'v': 5.131}
         self.offset = 0
+        self.current_iter = None
         logging.info('Инициализация класса VKinderBot')
 
     def _get_photos_list(self, user_id: int) -> list:
@@ -36,7 +41,7 @@ class VKinderBot:
 
         params = self.common_params
         params.update({
-            'access_token': app_token,
+            'access_token': self.app_token,
             'owner_id': user_id,
             'album_id': 'profile',
             'extended': 1
@@ -183,120 +188,133 @@ class VKinderBot:
 
         return keyboard.get_keyboard()
 
+    def _send_person(self, favorite_flag, person, event):
+        self._send_message(event.user_id,
+                           message=f"{person.get('fullname')}\n{person.get('link')}",
+                           attachment=person.get("photos"),
+                           keyboard=self._send_full_keyboard(favorite_flag))
+
+    def _first_event(self, event):
+
+        params_of_user = self._user_data(event.user_id)
+        if not check_user_bot(event.user_id):
+            write_users(**params_of_user)
+            logging.info('Данные пользователя внесены в базу данных')
+        self.current_iter = BotIter(params_of_user, get_offset(event.user_id), self.filter_search)
+        self._send_message(event.user_id,
+                           message=f'Привет, {self._get_name(event.user_id)}! Мы подобрали для тебя пары. Жми начать 👇',
+                           keyboard=self._send_start_keyboard())
+
+    def _begin_event(self, favorite_flag, current_iter, event):
+
+        logging.info('Пользователь перешел по ветке "начать"')
+        person = next(current_iter)
+        self._send_person(favorite_flag, person, event)
+        return person
+
+    def _blacklist_event(self, person, event):
+
+        logging.info('Пользователь перешел по ветке "в черный список"')
+        if not check_black(person.get("user_id")):
+            data_for_table = {
+                "fullname": person.get("fullname"),
+                "black_id": person.get("user_id"),
+                "user_id": event.user_id
+            }
+            write_black_list(**data_for_table)
+            logging.info('Информация о пользователе добавлена в БД в таблицу "black_list"')
+        self._send_message(event.user_id,
+                           message=f"Добавлено в черный список {person.get('fullname')}")
+
+    def _favorites_event(self, favorite_flag, person, event):
+
+        logging.info('Пользователь перешел по ветке "в избранное"')
+        favorite_flag = favorite_flag
+        if not check_favorite(person.get("user_id")):
+            favorite_flag = True
+            data_for_table = {
+                "fullname": person.get("fullname"),
+                "favorite_id": person.get("user_id"),
+                "link": person.get("link"),
+                "photos": person.get("photos"),
+                "user_id": event.user_id
+            }
+            write_favorite(**data_for_table)
+            logging.info('Информация о пользователе добавлена в БД в таблицу "favorite"')
+        self._send_message(event.user_id,
+                           message=f"Добавлено в избранное {person.get('fullname')}")
+        return favorite_flag
+
+    def _back_event(self, favorite_flag, event):
+
+        logging.info('Пользователь перешел по ветке "назад"')
+        person = self.current_iter.prev()
+        self._send_person(favorite_flag, person, event)
+
+    def _view_favorites_event(self, event):
+
+        logging.info('Пользователь перешел по ветке "просмотреть избранное"')
+        self._send_message(event.user_id,
+                           message=f"Вы находитесь в избранном")
+        for user in show_favorites(event.user_id):
+            self._send_message(event.user_id,
+                               message=f"{user[0]}\n{user[1]}",
+                               attachment=user[2])
+        logging.info('Выведена информация из таблицы "favorite"')
+        self._send_message(event.user_id,
+                           message="нажмите, чтобы продолжить поиск или завершить",
+                           keyboard=self._send_continue_complete_keyboard())
+
+    def _end_event(self, event):
+
+        logging.info('Пользователь перешел по ветке "завершить"')
+        self._send_message(event.user_id,
+                           message=f"До новых встреч!")
+        self.offset = self.current_iter.inner_cursor + self.current_iter.offset
+        if get_offset(event.user_id):
+            change_offset(event.user_id, self.offset)
+        else:
+            data_for_table = {
+                "offset": self.offset,
+                "user_id": event.user_id
+            }
+            write_parametr_offset(**data_for_table)
+
     def run_bot(self):
         '''Выполянет запуск бота'''
 
         logging.debug('Запуск бота')
-
+        person = None
         favorite_flag = False
         welcome_flag = True
         for event in self.longpoll.listen():
             if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
-                if event.text.lower():
-
-                    if welcome_flag:
-                        params_of_user = self._user_data(event.user_id)
-                        if not check_user_bot(event.user_id):
-                            write_users(**params_of_user)
-                            logging.info('Данные пользователя внесены в базу данных')
-                        current_iter = BotIter(params_of_user, get_offset(event.user_id), self.filter_search)
-                        self._send_message(event.user_id,
-                                           message=f'Привет, {self._get_name(event.user_id)}! Мы подобрали для тебя пары. Жми начать 👇',
-                                           keyboard=self._send_start_keyboard())
+                if welcome_flag:
+                    if event.text.lower():
+                        self._first_event(event)
                         welcome_flag = False
-                    else:
-                        pass
+                else:
+                    if event.text.lower() == 'начать':
+                        person = self._begin_event(favorite_flag, self.current_iter, event)
 
-                if event.text.lower() == 'начать':
-
-                    logging.info('Пользователь перешел по ветке "начать"')
-                    if welcome_flag is False:
-                        person = next(current_iter)
-                        self._send_message(event.user_id,
-                                           message=f"{person.get('fullname')}\n{person.get('link')}",
-                                           attachment=person.get("photos"),
-                                           keyboard=self._send_full_keyboard(favorite_flag))
-
-                if event.text.lower() in ["вперед", "продолжить", "в избранное", "в черный список"]:
-
-                    if welcome_flag is False:
+                    elif event.text.lower() in ["вперед", "продолжить", "в избранное", "в черный список"]:
                         if event.text.lower() == "в черный список":
-
-                            logging.info('Пользователь перешел по ветке "в черный список"')
-                            if not check_black(person.get("user_id")):
-                                data_for_table = {
-                                    "fullname": person.get("fullname"),
-                                    "black_id": person.get("user_id"),
-                                    "user_id": event.user_id
-                                }
-                                write_black_list(**data_for_table)
-                                logging.info('Информация о пользователе добавлена в БД в таблицу "black_list"')
-                            self._send_message(event.user_id,
-                                               message=f"Добавлено в черный список {person.get('fullname')}")
+                            self._blacklist_event(person, event)
 
                         if event.text.lower() == "в избранное":
+                            favorite_flag = self._favorites_event(favorite_flag, person, event)
 
-                            logging.info('Пользователь перешел по ветке "в избранное"')
-                            if not check_favorite(person.get("user_id")):
-                                favorite_flag = True
-                                data_for_table = {
-                                    "fullname": person.get("fullname"),
-                                    "favorite_id": person.get("user_id"),
-                                    "link": person.get("link"),
-                                    "photos": person.get("photos"),
-                                    "user_id": event.user_id
-                                }
-                                write_favorite(**data_for_table)
-                                logging.info('Информация о пользователе добавлена в БД в таблицу "favorite"')
-                            self._send_message(event.user_id,
-                                               message=f"Добавлено в избранное {person.get('fullname')}")
+                        person = next(self.current_iter)
+                        self._send_person(favorite_flag, person, event)
 
-                        person = next(current_iter)
-                        self._send_message(event.user_id,
-                                           message=f"{person.get('fullname')}\n{person.get('link')}",
-                                           attachment=person.get("photos"),
-                                           keyboard=self._send_full_keyboard(favorite_flag))
+                    elif event.text.lower() == 'назад':
+                        self._back_event(favorite_flag, event)
 
-                if event.text.lower() == 'назад':
+                    elif event.text.lower() == "просмотреть избранное":
+                        self._view_favorites_event(event)
 
-                    logging.info('Пользователь перешел по ветке "назад"')
-                    if welcome_flag is False:
-                        person = current_iter.prev()
-                        self._send_message(event.user_id,
-                                           message=f"{person.get('fullname')}\n{person.get('link')}",
-                                           attachment=person.get("photos"),
-                                           keyboard=self._send_full_keyboard(favorite_flag))
-
-                if event.text.lower() == "просмотреть избранное":
-
-                    logging.info('Пользователь перешел по ветке "просмотреть избранное"')
-                    if welcome_flag is False:
-                        self._send_message(event.user_id,
-                                           message=f"Вы находитесь в избранном")
-                        for user in show_favorites(event.user_id):
-                            self._send_message(event.user_id,
-                                               message=f"{user[0]}\n{user[1]}",
-                                               attachment=user[2])
-                        logging.info('Выведена информация из таблицы "favorite"')
-                        self._send_message(event.user_id,
-                                           message="нажмите, чтобы продолжить поиск или завершить",
-                                           keyboard=self._send_continue_complete_keyboard())
-
-                if event.text.lower() == "завершить":
-
-                    logging.info('Пользователь перешел по ветке "завершить"')
-                    if welcome_flag is False:
-                        self._send_message(event.user_id,
-                                           message=f"До новых встреч!")
-                        self.offset = current_iter.inner_cursor + current_iter.offset
-                        if get_offset(event.user_id):
-                            change_offset(event.user_id, self.offset)
-                        else:
-                            data_for_table = {
-                                "offset": self.offset,
-                                "user_id": event.user_id
-                            }
-                            write_parametr_offset(**data_for_table)
+                    elif event.text.lower() == "завершить":
+                        self._end_event(event)
                         break
 
 
